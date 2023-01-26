@@ -15,6 +15,7 @@ func init_SocketmodeHandler() *SocketmodeHandler {
 	eventMap := make(map[EventType][]SocketmodeHandlerFunc)
 	interactioneventMap := make(map[slack.InteractionType][]SocketmodeHandlerFunc)
 	eventApiMap := make(map[slackevents.EventsAPIType][]SocketmodeHandlerFunc)
+	InteractionViewSubmissionMap := make(map[string]SocketmodeHandlerFunc)
 	interactionBlockActionEventMap := make(map[string]SocketmodeHandlerFunc)
 	slashCommandMap := make(map[string]SocketmodeHandlerFunc)
 
@@ -25,6 +26,7 @@ func init_SocketmodeHandler() *SocketmodeHandler {
 		EventMap:                       eventMap,
 		EventApiMap:                    eventApiMap,
 		InteractionEventMap:            interactioneventMap,
+		InteractionViewSubmissionMap:   InteractionViewSubmissionMap,
 		InteractionBlockActionEventMap: interactionBlockActionEventMap,
 		SlashCommandMap:                slashCommandMap,
 	}
@@ -57,6 +59,10 @@ func middleware_interaction(evt *Event, client *Client) {
 }
 
 func middleware_interaction_block_action(evt *Event, client *Client) {
+	//do nothing
+}
+
+func middleware_interaction_view_submission(evt *Event, client *Client) {
 	//do nothing
 }
 
@@ -357,6 +363,73 @@ func TestSocketmodeHandler_HandleInteractionBlockAction(t *testing.T) {
 				},
 				register: func(r *SocketmodeHandler, c chan<- string) {
 					r.HandleInteractionBlockAction("add_note", testing_wrapper(c, middleware_interaction_block_action))
+				},
+			},
+			want: "github.com/slack-go/slack/socketmode.defaultmiddleware",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := init_SocketmodeHandler()
+
+			c := make(chan string)
+
+			tt.args.register(r, c)
+			r.HandleDefault(testing_wrapper(c, defaultmiddleware))
+
+			r.dispatcher(tt.args.evt)
+
+			got := <-c
+
+			if got != tt.want {
+				t.Fatalf("%s was not called for EventTy(\"%v\"), got %v", tt.want, tt.args.evt.Type, got)
+			}
+		})
+	}
+}
+
+
+func TestSocketmodeHandler_HandleInteractionViewSumission(t *testing.T) {
+	type args struct {
+		evt      Event
+		register func(*SocketmodeHandler, chan<- string)
+	}
+	tests := []struct {
+		name string
+		args args
+		want string //what is the name of the function we want to be called
+	}{
+		{
+			name: "Event Match registered function",
+			args: args{
+				evt: Event{
+					Type: EventTypeInteractive,
+					Data: slack.InteractionCallback{
+						Type: slack.InteractionTypeViewSubmission,
+						View: slack.View{
+							CallbackID: "submit_callback_id",
+						},
+					},
+				},
+				register: func(r *SocketmodeHandler, c chan<- string) {
+					r.HandleInteractionViewSubmission("submit_callback_id", testing_wrapper(c, middleware_interaction_view_submission))
+				},
+			},
+			want: "github.com/slack-go/slack/socketmode.middleware_interaction_view_submission",
+		}, {
+			name: "Event do not Match any registered function",
+			args: args{
+				evt: Event{
+					Type: EventTypeInteractive,
+					Data: slack.InteractionCallback{
+						Type: slack.InteractionTypeViewSubmission,
+						View: slack.View{
+							CallbackID: "wrong_callback_id",
+						},
+					},
+				},
+				register: func(r *SocketmodeHandler, c chan<- string) {
+					r.HandleInteractionViewSubmission("submit_callback_id", testing_wrapper(c, middleware_interaction_view_submission))
 				},
 			},
 			want: "github.com/slack-go/slack/socketmode.defaultmiddleware",

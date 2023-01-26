@@ -14,6 +14,7 @@ type SocketmodeHandler struct {
 	InteractionEventMap map[slack.InteractionType][]SocketmodeHandlerFunc
 	EventApiMap         map[slackevents.EventsAPIType][]SocketmodeHandlerFunc
 	//lvl 3 - the most userfriendly way of managing event
+	InteractionViewSubmissionMap            map[string]SocketmodeHandlerFunc
 	InteractionBlockActionEventMap map[string]SocketmodeHandlerFunc
 	SlashCommandMap                map[string]SocketmodeHandlerFunc
 
@@ -32,6 +33,7 @@ func NewSocketmodeHandler(client *Client) *SocketmodeHandler {
 	interactionEventMap := make(map[slack.InteractionType][]SocketmodeHandlerFunc)
 	eventApiMap := make(map[slackevents.EventsAPIType][]SocketmodeHandlerFunc)
 
+	InteractionViewSubmissionMap := make(map[string]SocketmodeHandlerFunc)
 	interactionBlockActionEventMap := make(map[string]SocketmodeHandlerFunc)
 	slackCommandMap := make(map[string]SocketmodeHandlerFunc)
 
@@ -40,6 +42,7 @@ func NewSocketmodeHandler(client *Client) *SocketmodeHandler {
 		EventMap:                       eventMap,
 		EventApiMap:                    eventApiMap,
 		InteractionEventMap:            interactionEventMap,
+		InteractionViewSubmissionMap:            InteractionViewSubmissionMap,
 		InteractionBlockActionEventMap: interactionBlockActionEventMap,
 		SlashCommandMap:                slackCommandMap,
 		Default: func(e *Event, c *Client) {
@@ -77,6 +80,21 @@ func (r *SocketmodeHandler) HandleInteractionBlockAction(actionID string, f Sock
 	}
 	r.InteractionBlockActionEventMap[actionID] = f
 }
+
+// Register a middleware or handler for a View Submit referenced by its CallbackID of the view
+func (r *SocketmodeHandler) HandleInteractionViewSubmission(callbackID string, f SocketmodeHandlerFunc) {
+	if callbackID == "" {
+		panic("invalid command cannot be empty")
+	}
+	if f == nil {
+		panic("invalid handler cannot be nil")
+	}
+	if _, exist := r.InteractionViewSubmissionMap[callbackID]; exist {
+		panic("multiple registrations for callbackID" + callbackID)
+	}
+	r.InteractionViewSubmissionMap[callbackID] = f
+}
+
 
 // Register a middleware or handler for an Event (from slackevents)
 func (r *SocketmodeHandler) HandleEvents(et slackevents.EventsAPIType, f SocketmodeHandlerFunc) {
@@ -188,6 +206,19 @@ func (r *SocketmodeHandler) interactionDispatcher(evt *Event) bool {
 			ishandled = true
 		}
 	}
+	
+	// For use cases when submit is not related to specific input action
+	// or no input actions at all
+	if interaction.Type == slack.InteractionType(slack.InteractionTypeViewSubmission) {
+		viewSubmissionCallbackID := interaction.View.CallbackID
+		if handler, ok := r.InteractionViewSubmissionMap[viewSubmissionCallbackID]; ok {
+
+			go handler(evt, r.Client)
+	
+			ishandled = true
+		}
+	}
+
 	return ishandled
 }
 
