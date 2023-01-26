@@ -14,7 +14,7 @@ type SocketmodeHandler struct {
 	InteractionEventMap map[slack.InteractionType][]SocketmodeHandlerFunc
 	EventApiMap         map[slackevents.EventsAPIType][]SocketmodeHandlerFunc
 	//lvl 3 - the most userfriendly way of managing event
-	InteractionViewSubmissionMap            map[string]SocketmodeHandlerFunc
+	InteractionViewSubmissionEventMap            map[string]SocketmodeHandlerFunc
 	InteractionBlockActionEventMap map[string]SocketmodeHandlerFunc
 	SlashCommandMap                map[string]SocketmodeHandlerFunc
 
@@ -33,7 +33,7 @@ func NewSocketmodeHandler(client *Client) *SocketmodeHandler {
 	interactionEventMap := make(map[slack.InteractionType][]SocketmodeHandlerFunc)
 	eventApiMap := make(map[slackevents.EventsAPIType][]SocketmodeHandlerFunc)
 
-	InteractionViewSubmissionMap := make(map[string]SocketmodeHandlerFunc)
+	InteractionViewSubmissionEventMap := make(map[string]SocketmodeHandlerFunc)
 	interactionBlockActionEventMap := make(map[string]SocketmodeHandlerFunc)
 	slackCommandMap := make(map[string]SocketmodeHandlerFunc)
 
@@ -42,7 +42,7 @@ func NewSocketmodeHandler(client *Client) *SocketmodeHandler {
 		EventMap:                       eventMap,
 		EventApiMap:                    eventApiMap,
 		InteractionEventMap:            interactionEventMap,
-		InteractionViewSubmissionMap:            InteractionViewSubmissionMap,
+		InteractionViewSubmissionEventMap:            InteractionViewSubmissionEventMap,
 		InteractionBlockActionEventMap: interactionBlockActionEventMap,
 		SlashCommandMap:                slackCommandMap,
 		Default: func(e *Event, c *Client) {
@@ -89,10 +89,10 @@ func (r *SocketmodeHandler) HandleInteractionViewSubmission(callbackID string, f
 	if f == nil {
 		panic("invalid handler cannot be nil")
 	}
-	if _, exist := r.InteractionViewSubmissionMap[callbackID]; exist {
+	if _, exist := r.InteractionViewSubmissionEventMap[callbackID]; exist {
 		panic("multiple registrations for callbackID" + callbackID)
 	}
-	r.InteractionViewSubmissionMap[callbackID] = f
+	r.InteractionViewSubmissionEventMap[callbackID] = f
 }
 
 
@@ -211,7 +211,7 @@ func (r *SocketmodeHandler) interactionDispatcher(evt *Event) bool {
 	// or no input actions at all
 	if interaction.Type == slack.InteractionType(slack.InteractionTypeViewSubmission) {
 		viewSubmissionCallbackID := interaction.View.CallbackID
-		if handler, ok := r.InteractionViewSubmissionMap[viewSubmissionCallbackID]; ok {
+		if handler, ok := r.InteractionViewSubmissionEventMap[viewSubmissionCallbackID]; ok {
 
 			go handler(evt, r.Client)
 	
